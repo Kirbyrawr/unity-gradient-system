@@ -23,10 +23,12 @@ namespace KR.Graphics
 
         public List<GradientKey> keys = new List<GradientKey>() { new GradientKey(Color.white, 0) };
 
-        public Color Evaluate(float time)
-        {
-            SortKeys();
+        #if UNITY_EDITOR
+        public Texture2D preview;
+        #endif
 
+        public Color Evaluate(float time)
+        {   
             GradientKey lastKey = keys[keys.Count - 1]; 
 
             //If the time is over the time of the last key we return the last key color.
@@ -38,13 +40,15 @@ namespace KR.Graphics
             for (int i = 0; i < keys.Count - 1; i++)
             {
                 GradientKey actualKey = keys[i];
-                GradientKey nextKey = keys[i+1];
+                GradientKey nextKey = keys[i + 1];
 
                 if (time >= actualKey.time && time <= keys[i + 1].time)
                 {    
                     return Color.Lerp(actualKey.color, nextKey.color, (time - actualKey.time) / (nextKey.time - actualKey.time));
                 }
             }
+
+            //SortKeys();
 
             return keys[0].color;
         }
