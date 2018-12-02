@@ -17,13 +17,15 @@ public class GradientEditor : EditorWindow
     //Editor
     public class KeyData
     {
+        public KR.Graphics.Gradient.GradientKey key;
         public bool foldout;
-        public bool pressed;
     }
 
     List<KeyData> keysData = new List<KeyData>();
 
     private Texture2D markerTex;
+
+    private KeyData m_currentKeyData = null;
 
     public static void Init(KR.Graphics.Gradient gradient)
     {
@@ -37,13 +39,16 @@ public class GradientEditor : EditorWindow
         markerTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/GradientSystem/Assets/Marker.png");
         for (int i = 0; i < gradient.keys.Count; i++)
         {
-            keysData.Add(new KeyData());
+            KeyData keyData = new KeyData();
+            keyData.key = gradient.keys[i];
+            keysData.Add(keyData);
         }
     }
 
     void OnGUI()
     {
         DrawEditor();
+        CheckEvents();
         Repaint();
     }
 
@@ -52,66 +57,18 @@ public class GradientEditor : EditorWindow
         EditorGUILayout.LabelField("Gradient Editor", EditorStyles.boldLabel);
         EditorGUILayout.Separator();
 
-        GradientGUI.DrawGradientLayout(gradient, GUILayout.Height(50));   
+        GradientGUI.DrawGradientLayout(gradient, GUILayout.Height(50));
         DrawMarkers();
-        
-
-        keysScrollPos = EditorGUILayout.BeginScrollView(keysScrollPos);
-        for (int i = 0; i < gradient.keys.Count; i++)
-        {
-            KR.Graphics.Gradient.GradientKey key = gradient.keys[i];
-            KeyData keyData = keysData[i];
-
-            GUILayout.BeginHorizontal();
-            keyData.foldout = EditorGUILayout.Foldout(keyData.foldout, "Key " + i);
-            if (gradient.keys.Count > 1)
-            {
-                if (i != 0)
-                {
-                    if (GUILayout.Button("↑", GUILayout.Width(20), GUILayout.Height(20)))
-                    {
-                        Swap(gradient.keys, i, i - 1);
-                    }
-                }
-
-                if (i != gradient.keys.Count - 1)
-                {
-                    if (GUILayout.Button("↓", GUILayout.Width(20), GUILayout.Height(20)))
-                    {
-                        Swap(gradient.keys, i, i + 1);
-                    }
-                }
-
-                if (GUILayout.Button("X", GUILayout.Width(20), GUILayout.Height(20)))
-                {
-                    gradient.keys.RemoveAt(i);
-                    keysData.RemoveAt(i);
-                    break;
-                }
-            }
-            GUILayout.EndHorizontal();
-
-            if (keyData.foldout)
-            {
-                EditorGUI.indentLevel++;
-                EditorGUI.BeginChangeCheck();
-                key.color = EditorGUILayout.ColorField("Color", key.color);
-                if (EditorGUI.EndChangeCheck())
-                {
-                    Undo.RecordObject(this, "Color");
-                    //EditorUtility.SetDirty(gradient);
-                }
-
-                key.time = EditorGUILayout.Slider("Time", key.time, 0, 1);
-                EditorGUI.indentLevel--;
-            }
-        }
-        EditorGUILayout.EndScrollView();
+        DrawKeys();
 
         if (GUILayout.Button("Add"))
         {
-            keysData.Add(new KeyData());
-            gradient.keys.Add(new KR.Graphics.Gradient.GradientKey(Color.white, 1));
+            KR.Graphics.Gradient.GradientKey key = new KR.Graphics.Gradient.GradientKey(Color.white, 1);
+            gradient.keys.Add(key);
+
+            KeyData keyData = new KeyData();
+            keyData.key = key;
+            keysData.Add(keyData);
         }
     }
 
@@ -125,38 +82,75 @@ public class GradientEditor : EditorWindow
         GUILayout.Space(18);
     }
 
+    private void DrawKeys()
+    {
+        keysScrollPos = EditorGUILayout.BeginScrollView(keysScrollPos);
+        for (int i = 0; i < keysData.Count; i++)
+        {
+            KeyData keyData = keysData[i];
+
+            GUILayout.BeginHorizontal();
+            keyData.foldout = EditorGUILayout.Foldout(keyData.foldout, "Key " + i);
+            if (gradient.keys.Count > 1)
+            {
+                if (GUILayout.Button("X", GUILayout.Width(20), GUILayout.Height(20)))
+                {
+                    gradient.keys.RemoveAt(i);
+                    keysData.RemoveAt(i);
+                    break;
+                }
+            }
+            GUILayout.EndHorizontal();
+
+            if (keyData.foldout)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUI.BeginChangeCheck();
+                keyData.key.color = EditorGUILayout.ColorField("Color", keyData.key.color);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(this, "Color");
+                    //EditorUtility.SetDirty(gradient);
+                }
+
+                keyData.key.time = EditorGUILayout.Slider("Time", keyData.key.time, 0, 1);
+                EditorGUI.indentLevel--;
+            }
+        }
+        EditorGUILayout.EndScrollView();
+    }
+
     private void DrawDragMarker(int index)
     {
         KeyData keyData = keysData[index];
-        KR.Graphics.Gradient.GradientKey key = gradient.keys[index];
 
         Rect rect = GUILayoutUtility.GetLastRect();
-        rect.x = key.time * (position.width - 16);
+        rect.x = keyData.key.time * (position.width - 16);
         rect.size = new Vector2(16, 16);
 
-        if (rect.Contains(Event.current.mousePosition) && Event.current.type == EventType.MouseDown)
+        if (m_currentKeyData == null && rect.Contains(Event.current.mousePosition) && Event.current.type == EventType.MouseDown)
         {
-            keyData.pressed = true;
+            m_currentKeyData = keyData;
         }
 
-        if (Event.current.type == EventType.MouseUp || Event.current.type == EventType.MouseLeaveWindow)
-        {
-            keyData.pressed = false;
-        }
-
-        if (keyData.pressed && Event.current.type == EventType.MouseDrag)
-        {
-            float x = rect.x + Event.current.delta.x;
-            key.time = Mathf.Clamp01(x / (position.width - 16f));
-        }
-
-        GUI.Button(rect, markerTex, EditorStyles.label);
+        EditorGUI.LabelField(rect, new GUIContent(markerTex));
     }
 
-    public void Swap<T>(IList<T> list, int indexA, int indexB)
+    private void CheckEvents()
     {
-        T tmp = list[indexA];
-        list[indexA] = list[indexB];
-        list[indexB] = tmp;
+        if (m_currentKeyData == null) { return; }
+
+        if (Event.current.type == EventType.MouseUp || EditorWindow.mouseOverWindow != this)
+        {
+            m_currentKeyData = null;
+        }
+
+        if (Event.current.type == EventType.MouseDrag)
+        {
+            float x = m_currentKeyData.key.time * (position.width - 16) + Event.current.delta.x;
+            m_currentKeyData.key.time = Mathf.Clamp01(x / (position.width - 16f));
+            gradient.SortKeys();
+            keysData.Sort((p1, p2) => (p1.key.time.CompareTo(p2.key.time)));
+        }   
     }
 }

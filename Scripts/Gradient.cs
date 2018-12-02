@@ -48,8 +48,6 @@ namespace KR.Graphics
                 }
             }
 
-            //SortKeys();
-
             return keys[0].color;
         }
         
